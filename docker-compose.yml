@@ -1,0 +1,68 @@
+services:
+  postgres:
+    image: ankane/pgvector:v0.7.0
+    container_name: gestion_scolaire_db
+    environment:
+      POSTGRES_DB: gestion_scolaire
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: admin123
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U admin -d gestion_scolaire"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - scolaire_net
+
+  spring-app:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: gestion_scolaire_backend
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/gestion_scolaire
+      SPRING_DATASOURCE_USERNAME: admin
+      SPRING_DATASOURCE_PASSWORD: admin123
+      JWT_SECRET: 7a4f2c8e1b6d9f3a5c2e8b4f7d1a6c9e3b5f2a8d4c7e1b9f6a3d5c8e2b4f7a1d
+      JWT_EXPIRATION: 86400000
+      SPRING_PROFILES_ACTIVE: prod
+    networks:
+      - scolaire_net
+    restart: unless-stopped
+
+  ai-service:
+    build:
+      context: ./ai-service
+      dockerfile: Dockerfile
+    container_name: gestion_scolaire_ai
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: gestion_scolaire
+      DB_USER: admin
+      DB_PASSWORD: admin123
+    networks:
+      - scolaire_net
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+    driver: local
+
+networks:
+  scolaire_net:
+    driver: bridge
